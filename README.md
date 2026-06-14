@@ -38,8 +38,8 @@ are **measured** on an M2 Air (8 GB), n=1024, preset q≈2²⁷ — see [BENCHMA
 
 | Circuit | Statement | Who can prove it | n=1024 (digest) |
 |---|---|---|---|
-| [`sk_encryption`](noir-rlwe/src/proofs/sk_encryption.nr) | `c0 = [-a·s + Δ·m + e]_q`, `c1 = a` | the secret-key holder | 48,195 gates · 0.65 s · 2.45M gas |
-| [`pk_encryption`](noir-rlwe/src/proofs/pk_encryption.nr) | `c0 = [pk0·u + e0 + Δ·m]_q`, `c1 = [pk1·u + e1]_q` | **any input submitter** (holds only `pk`) | 80,185 gates · 0.89 s · 2.51M gas |
+| [`sk_encryption`](noir-rlwe/src/proofs/sk_encryption.nr) | `c0 = [-a·s + Δ·m + e]_q`, `c1 = a` | the secret-key holder | 48,270 gates · 0.65 s · 2.45M gas |
+| [`pk_encryption`](noir-rlwe/src/proofs/pk_encryption.nr) | `c0 = [pk0·u + e0 + Δ·m]_q`, `c1 = [pk1·u + e1]_q` | **any input submitter** (holds only `pk`) | 80,262 gates · 0.89 s · 2.51M gas |
 
 Both prove knowledge of a ternary key/randomness, a bounded error `‖e‖∞ ≤ B`, and a plaintext
 `m ∈ [0, t)`, enforced by in-circuit range checks. All circuits ship with negative tests (tampering
@@ -131,6 +131,22 @@ MVP complete: SK + PK encryption circuits, packed Fiat-Shamir + single-digest op
 witness generator, on-chain UltraHonk Solidity verifier (deployed + verified on Anvil), measured
 benchmarks. **Not yet done:** professional audit, a production-FHE-library cross-check, the q≈2⁵⁵
 witness path, and the post-MVP homomorphic-operation circuits (see [Roadmap](#roadmap)).
+
+## Security
+
+> Research-grade and **UNAUDITED** — full analysis in [docs/security.md](docs/security.md). A professional
+> audit is required before any production use.
+
+The soundness of the Schwartz–Zippel approach is worked out, not assumed:
+
+- **No-wraparound lemma (proven)** — the single-point check over `F_p` forces the exact integer relation: every coefficient of the difference polynomial satisfies `‖D‖∞ < 2⁴² < p/2` ([docs/no_wraparound.md](docs/no_wraparound.md)).
+- **Quotient completeness (proven)** — every genuine encryption passes the range checks ([docs/completeness.md](docs/completeness.md)).
+- **Fiat–Shamir in the ROM (proven)** — the in-circuit challenge is sound with grinding error `≤ Q·(2N−1)/p` ([docs/proof_system_composition.md](docs/proof_system_composition.md)).
+- **Knowledge soundness & zero-knowledge (reduced)** — to UltraHonk's standard guarantees; the ZK flavor is verified on, so the witness (message, randomness, errors) is hidden under RLWE.
+- **Parameters validated** — `bfv_1024_27` is ~126-bit (lattice-estimator); `bfv_1024_55` is insecure at n=1024 and is test-vector-only ([docs/parameter_security.md](docs/parameter_security.md)).
+- **Trust boundary** — the digest binds `(pk,c)` into the Fiat–Shamir challenge, so the proof is sound on its own; the relying party still binds the returned digest to a *registered, well-formed* public key (the circuit proves validity **under** `pk`, not **of** `pk`).
+
+An internal review pass hardened the digest/`γ` binding and surfaced these as explicit obligations; it is **not** an independent audit.
 
 ## Roadmap
 

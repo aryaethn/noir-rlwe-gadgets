@@ -80,15 +80,15 @@ pub fn verify_sk_encryption<let N: u32, let LOG_N: u32>(
 global R_SHIFT_U: Field = 8192; // 2^13  (|r| < 2^13 for N <= 4096)
 global QAS_SHIFT_U: Field = 1099511627776; // 2^40  (|q_as| < 2^40 for N <= 4096)
 
-/// Range-check the 5 witness polynomials and derive gamma by hashing each one bit-packed, then
-/// hashing the 5 sub-digests. c0,c1 are excluded from gamma (ADR-009 Lever B). Generic over N.
-fn packed_gamma<let N: u32>(
+/// Range-check the 5 witness polynomials and return their 5 bit-packed sub-digests. The caller folds
+/// these (and, in the digest variant, the public sub-digests too) into gamma. Generic over N.
+fn sk_witness_subdigests<let N: u32>(
     s: [Field; N],
     e: [Field; N],
     m: [Field; N],
     r: [Field; N],
     q_as: [Field; N],
-) -> Field {
+) -> [Field; 5] {
     let mut s1 = [0; N];
     let mut e1 = [0; N];
     let mut r1 = [0; N];
@@ -110,7 +110,7 @@ fn packed_gamma<let N: u32>(
     let h_m = hash_packed::<N, 17, 14>(m);
     let h_r = hash_packed::<N, 14, 18>(r1);
     let h_q = hash_packed::<N, 41, 6>(q1);
-    Poseidon2::hash([h_s, h_e, h_m, h_r, h_q], 5)
+    [h_s, h_e, h_m, h_r, h_q]
 }
 
 /// The exact SK-BFV Schwartz-Zippel identity at `gamma`. Generic over N and LOG_N = log2(N).
@@ -147,20 +147,22 @@ pub fn verify_sk_encryption_packed<let N: u32, let LOG_N: u32>(
     r: [Field; N],
     q_as: [Field; N],
 ) {
-    let gamma = packed_gamma(s, e, m, r, q_as);
+    // c0,c1 are PUBLIC inputs here, bound directly by the SNARK, so gamma need not bind them (Lever B).
+    let gamma = Poseidon2::hash(sk_witness_subdigests(s, e, m, r, q_as), 5);
     assert_sz_identity::<N, LOG_N>(c0, c1, s, e, m, r, q_as, gamma);
 }
 
 /// Single-digest variant (optimization plan Part 2 prerequisite), generic over N: c0,c1 are PRIVATE
 /// witness, and the circuit RETURNS `digest = Poseidon2(hash(pack c0), hash(pack c1))` as its single
-/// public output. This collapses the public inputs from 2N (the raw ciphertext) to 1, cutting
-/// on-chain gas; the ciphertext can then be posted in an EIP-4844 blob (DA) and bound off-chain by
-/// recomputing the digest. See `docs/security.md` for the binding requirement.
+/// public output. This collapses the public inputs from 2N (the raw ciphertext) to 1, cutting on-chain
+/// gas; the ciphertext can then be posted in an EIP-4844 blob (DA) and bound by recomputing the digest.
 ///
-/// c0,c1 are range-checked to 27 bits so the digest packing is INJECTIVE -- otherwise a prover could
-/// substitute a different ciphertext colliding to the same digest. The relying party accepts the
-/// proof only if the returned digest equals H(its ciphertext), forcing the proven c0,c1 to be exactly
-/// that ciphertext; hence gamma still need not bind c0,c1.
+/// SOUNDNESS (hardened, audit ZK-01): c0 is PRIVATE (prover-chosen), so gamma binds the public
+/// sub-digests (h0,h1) as well as the 5 witnesses -- otherwise a prover could fix the witnesses (fixing
+/// gamma) and solve c0(gamma) to satisfy the identity at one point (a vacuous proof). The relying party
+/// MUST still bind the returned digest to its ciphertext (T2, docs/security.md §6); the hardening only
+/// removes the "accepts garbage" failure if that check is imperfect. c0,c1 are range-checked to 27 bits
+/// for injective digest packing.
 pub fn verify_sk_encryption_digest<let N: u32, let LOG_N: u32>(
     c0: [Field; N],
     c1: [Field; N],
@@ -174,10 +176,15 @@ pub fn verify_sk_encryption_digest<let N: u32, let LOG_N: u32>(
         c0[i].assert_max_bit_size::<27>(); // q < 2^27 -> injective digest packing
         c1[i].assert_max_bit_size::<27>();
     }
-    let gamma = packed_gamma(s, e, m, r, q_as);
-    assert_sz_identity::<N, LOG_N>(c0, c1, s, e, m, r, q_as, gamma);
-
+    // Public sub-digests, reused to BIND c0,c1 into gamma and to form the returned digest.
     let h0 = hash_packed::<N, 27, 9>(c0);
     let h1 = hash_packed::<N, 27, 9>(c1);
+
+    // gamma binds the 5 witnesses AND the 2 public polynomials (a private c0 must not be solvable for
+    // after gamma is fixed -- audit ZK-01).
+    let w = sk_witness_subdigests(s, e, m, r, q_as);
+    let gamma = Poseidon2::hash([w[0], w[1], w[2], w[3], w[4], h0, h1], 7);
+    assert_sz_identity::<N, LOG_N>(c0, c1, s, e, m, r, q_as, gamma);
+
     Poseidon2::hash([h0, h1], 2)
 }

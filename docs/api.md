@@ -51,12 +51,14 @@ pub fn verify_pk_encryption_digest<let N: u32, let LOG_N: u32>(
 Proves `c0 = [pk0·u + e0 + Δ·m]_q`, `c1 = [pk1·u + e1]_q`. Witnesses: `u` ternary, `e0,e1` with
 `‖·‖∞ ≤ B`, `m ∈ [0,t)`, mod-`q` quotients `r0,r1`, and `X^N+1` quotients `q0,q1`.
 
-> **Digest binding (required for soundness of `_digest`).** The returned digest only pins the values
-> the relying party compares it against. The verifier MUST check `digest == H(registered_pk ‖
-> submitted_ciphertext)` and reject on mismatch — otherwise a prover could encrypt under a public key
-> they control. See [security.md](security.md) §"Public-key binding".
+> **Digest binding (required for relevance of `_digest`).** The `_digest` circuits bind `(pk,c)` into
+> the Fiat–Shamir challenge, so the proof is sound on its own (it certifies a genuine encryption). To
+> learn *which* ciphertext it is about, the verifier MUST check `digest == H(registered_pk ‖
+> submitted_ciphertext)` and reject on mismatch; `registered_pk` must be a well-formed key established at
+> registration. See [security.md §6](security.md).
 
-All circuits require `LOG_N == log2(N)`. Constants (`Q, Δ, t, B`, quotient bounds) come from the
+All circuits require `LOG_N == log2(N)` (a misuse hazard — there is no compile-time guard yet; the
+shipped harnesses use correct pairs). Constants (`Q, Δ, t, B`, quotient bounds) come from the
 `bfv_1024_27` preset; the circuits are generic over `N` and validated for `N ≤ 4096`.
 
 ---

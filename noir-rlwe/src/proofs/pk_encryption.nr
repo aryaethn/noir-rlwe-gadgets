@@ -78,12 +78,11 @@ fn assert_pk_sz_identity<let N: u32, let LOG_N: u32>(
     assert(p1g * ug == c1g - e1g + Q * r1g + (gn + 1) * q1g);
 }
 
-/// Range-check the 8 witness polynomials (uniform N<=4096 bounds) and derive `gamma` by hashing
-/// each one bit-packed, then hashing the 8 sub-digests. pk0,pk1,c0,c1 are excluded from gamma
-/// (ADR-009 Lever B: they are pinned -- as public inputs in the packed variant, or by the returned
-/// digest in the digest variant). Generic over N. Packing widths reuse the SK schedule, doubled for
-/// the two error / two r / two q polynomials.
-fn packed_gamma_pk<let N: u32>(
+/// Range-check the 8 witness polynomials (uniform N<=4096 bounds) and return their 8 bit-packed
+/// sub-digests. The caller folds these (and, in the digest variant, the public sub-digests too) into
+/// `gamma`. Generic over N. Packing widths reuse the SK schedule, doubled for the two error / two r /
+/// two q polynomials.
+fn pk_witness_subdigests<let N: u32>(
     u: [Field; N],
     e0: [Field; N],
     e1: [Field; N],
@@ -92,7 +91,7 @@ fn packed_gamma_pk<let N: u32>(
     r1: [Field; N],
     q0: [Field; N],
     q1: [Field; N],
-) -> Field {
+) -> [Field; 8] {
     let mut u1 = [0; N];
     let mut e01 = [0; N];
     let mut e11 = [0; N];
@@ -126,7 +125,7 @@ fn packed_gamma_pk<let N: u32>(
     let h_r1 = hash_packed::<N, 14, 18>(r11);
     let h_q0 = hash_packed::<N, 41, 6>(q01);
     let h_q1 = hash_packed::<N, 41, 6>(q11);
-    Poseidon2::hash([h_u, h_e0, h_e1, h_m, h_r0, h_r1, h_q0, h_q1], 8)
+    [h_u, h_e0, h_e1, h_m, h_r0, h_r1, h_q0, h_q1]
 }
 
 /// Plain reference variant: binds every polynomial (public AND witness) into `gamma` via the
@@ -192,20 +191,28 @@ pub fn verify_pk_encryption_packed<let N: u32, let LOG_N: u32>(
     q0: [Field; N],
     q1: [Field; N],
 ) {
-    let gamma = packed_gamma_pk(u, e0, e1, m, r0, r1, q0, q1);
+    // Packed variant: pk0,pk1,c0,c1 are PUBLIC inputs, bound directly by the SNARK, so gamma need not
+    // bind them (Lever B). gamma binds the 8 witnesses.
+    let gamma = Poseidon2::hash(pk_witness_subdigests(u, e0, e1, m, r0, r1, q0, q1), 8);
     assert_pk_sz_identity::<N, LOG_N>(pk0, pk1, c0, c1, u, e0, e1, m, r0, r1, q0, q1, gamma);
 }
 
 /// Single-digest variant (optimization plan Part 2), generic over N: pk0,pk1,c0,c1 are PRIVATE
 /// witness, and the circuit RETURNS `digest = Poseidon2(pack(pk0)||pack(pk1)||pack(c0)||pack(c1))`
-/// as its single public output. This collapses the public inputs from 4N to 1, cutting on-chain gas;
-/// the relying party accepts only if the returned digest equals H(the recipient's registered public
-/// key || the submitted ciphertext), which pins all four public polynomials to those exact values
-/// (so gamma need not bind them).
+/// as its single public output. This collapses the public inputs from 4N to 1, cutting on-chain gas.
 ///
-/// pk0,pk1,c0,c1 are range-checked to 27 bits: this makes the digest packing INJECTIVE (otherwise a
-/// prover could substitute a colliding ciphertext) AND bounds the products pk*u so the quotient
-/// bounds |q| <= (N-1)q remain valid for adversarial inputs. `::<N, LOG_N>`.
+/// SOUNDNESS (hardened, audit ZK-01): unlike a public input, a PRIVATE c0 is prover-chosen, so if gamma
+/// excluded it a prover could fix the witnesses (fixing gamma) and then SOLVE c0(gamma) to satisfy the
+/// identity at that one point -- a vacuous proof for a non-ciphertext. We therefore bind the four public
+/// sub-digests (hp0,hp1,h0,h1) INTO gamma: c0 now affects gamma, so it cannot be solved for after the
+/// fact, and the proof is sound (a genuine encryption) on its own. This reuses the sub-digests already
+/// computed for the returned value, so the extra cost is one 12-input hash vs an 8-input hash.
+///
+/// The relying party MUST still check the returned digest equals H(the recipient's REGISTERED public
+/// key || the SUBMITTED ciphertext) to bind the proof to *that* ciphertext (requirement T2,
+/// docs/security.md §6); the hardening only removes the catastrophic "accepts garbage" failure mode if
+/// that check is imperfect. pk0,pk1,c0,c1 are range-checked to 27 bits: injective digest packing AND a
+/// bound on pk*u so the quotient bounds |q| <= (N-1)q hold for adversarial inputs. `::<N, LOG_N>`.
 pub fn verify_pk_encryption_digest<let N: u32, let LOG_N: u32>(
     pk0: [Field; N],
     pk1: [Field; N],
@@ -226,13 +233,21 @@ pub fn verify_pk_encryption_digest<let N: u32, let LOG_N: u32>(
         c0[i].assert_max_bit_size::<27>();
         c1[i].assert_max_bit_size::<27>();
     }
-    let gamma = packed_gamma_pk(u, e0, e1, m, r0, r1, q0, q1);
-    assert_pk_sz_identity::<N, LOG_N>(pk0, pk1, c0, c1, u, e0, e1, m, r0, r1, q0, q1, gamma);
-
+    // Public sub-digests, reused both to BIND pk,c into gamma and to form the returned digest.
     let hp0 = hash_packed::<N, 27, 9>(pk0);
     let hp1 = hash_packed::<N, 27, 9>(pk1);
     let h0 = hash_packed::<N, 27, 9>(c0);
     let h1 = hash_packed::<N, 27, 9>(c1);
+
+    // gamma binds the 8 witnesses AND the 4 public polynomials (a private c0 must not be solvable for
+    // after gamma is fixed -- audit ZK-01).
+    let w = pk_witness_subdigests(u, e0, e1, m, r0, r1, q0, q1);
+    let gamma = Poseidon2::hash(
+        [w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7], hp0, hp1, h0, h1],
+        12,
+    );
+    assert_pk_sz_identity::<N, LOG_N>(pk0, pk1, c0, c1, u, e0, e1, m, r0, r1, q0, q1, gamma);
+
     Poseidon2::hash([hp0, hp1, h0, h1], 4)
 }
 

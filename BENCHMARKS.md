@@ -31,12 +31,12 @@ returns one public `digest`; uniform quotient bounds valid for N ≤ 4096).
 
 | N | Gates | Compile (s) | Prove (s, med/3) | Prove RAM (MB) | Verify (s) | On-chain gas | Public inputs |
 |---|---|---|---|---|---|---|---|
-| 512  | 26,457  | 0.77 | 0.42 | 62  | 0.01 | 2,387,696 | 1 |
-| 1024 | 48,195  | 0.90 | 0.65 | 108 | 0.01 | 2,449,156 | 1 |
-| 2048 | 91,883  | 1.50 | 1.01 | 219 | 0.01 | 2,510,660 | 1 |
-| 4096 | 179,263 | 3.03 | 2.77 | 338 | 0.01 | 2,572,208 | 1 |
+| 512  | 26,533  | 0.77 | 0.42 | 62  | 0.01 | 2,387,696 | 1 |
+| 1024 | 48,270  | 0.90 | 0.65 | 108 | 0.01 | 2,449,156 | 1 |
+| 2048 | 91,958  | 1.50 | 1.01 | 219 | 0.01 | 2,510,660 | 1 |
+| 4096 | 179,338 | 3.03 | 2.77 | 338 | 0.01 | 2,572,208 | 1 |
 
-- Gates scale ~linearly in N (FS + range checks + identity are O(N)). Even **n=4096 is 179,263
+- Gates scale ~linearly in N (FS + range checks + identity are O(N)). Even **n=4096 is 179,338
   gates (≈2¹⁷·⁵), under the 2¹⁹ design ceiling**, with 338 MB RAM — the 8 GB target is never close.
 - **On-chain gas is nearly flat (~2.4–2.6M) across all N** because the digest gives every circuit
   a single public input; the small growth is sumcheck rounds (~log₂ circuit_size), not data.
@@ -58,13 +58,16 @@ variant: `pk0,pk1,c0,c1` are private, the circuit returns one public `digest = H
 
 | N | Gates | Prove (s, med/3) | Prove RAM (MB) | Verify | On-chain gas | Public inputs |
 |---|---|---|---|---|---|---|
-| 512  | 42,627 | 0.54 | 93  | PASS | 2,449,156 | 1 |
-| 1024 | 80,185 | 0.89 | 184 | PASS | 2,510,660 | 1 |
+| 512  | 42,704 | 0.54 | 93  | PASS | 2,449,156 | 1 |
+| 1024 | 80,262 | 0.89 | 184 | PASS | 2,510,660 | 1 |
+
+> Gate counts include the **ZK-01 hardening** (the digest circuits fold the public `(pk,c)` sub-digests
+> into the Fiat–Shamir `γ`; ~+75 gates, see `docs/security.md §6`). Pre-hardening figures were ~75 lower.
 
 - **~1.66× the SK digest gate count** (two products + 8 witness polys vs one + 5); still far under
   the 2¹⁹ ceiling and the 8 GB target. Prove ~1.3× SK, RAM ~1.7× SK.
 - **On-chain gas matches SK digest** (`NUMBER_OF_PUBLIC_INPUTS = 9` either way; gas tracks the
-  padded-circuit-size bucket, not PK-vs-SK). PK n=1024 (80,185 → pads to 2¹⁷) lands in the same
+  padded-circuit-size bucket, not PK-vs-SK). PK n=1024 (80,262 → pads to 2¹⁷) lands in the same
   bucket as SK n=2048, hence the identical 2,510,660; PK n=512 (→2¹⁶) matches SK n=1024's 2,449,156.
 - **End-to-end verified:** real Rust PK witness (`witness-gen --scheme pk`) accepted by
   `nargo execute`; `bb prove`/`verify` PASS; Solidity verifier deployed under `forge`, tampered
@@ -78,7 +81,7 @@ variant: `pk0,pk1,c0,c1` are private, the circuit returns one public `digest = H
 |---|---|---|---|---|---|
 | unpacked (raw ciphertext PI) | 212,055 | 2.29 | 417 | 5,753,230 | 2048 |
 | + packed Fiat-Shamir | 40,641 | 0.53 | 99 | ≈5.75M (PI-bound) | 2048 |
-| + single-digest public input | 48,195 | 0.65 | 108 | **2,449,156** | **1** |
+| + single-digest public input | 48,270 | 0.65 | 108 | **2,449,156** | **1** |
 
 - **Packed FS (Part 1, ADR-011):** bit-packing the witness coefficients before the Poseidon2
   challenge hash cuts the circuit **5.2×** (212,055 → 40,641) and prove ~4× (2.29 → 0.53 s), with
@@ -89,7 +92,7 @@ variant: `pk0,pk1,c0,c1` are private, the circuit returns one public `digest = H
   to 27 bits for injective binding). Public inputs **2048 → 1**, on-chain gas **5.75M → 2.45M
   (2.35×)**, and the 64 KB ciphertext calldata is removed. The +7.5k gates over packed is the c0,c1
   range checks + digest hash. Enables posting the ciphertext in an EIP-4844 blob (Part 2).
-- **Combined vs unpacked baseline:** 212,055 → 48,195 gates (**4.4×**), prove 2.29 → 0.65 s, RAM
+- **Combined vs unpacked baseline:** 212,055 → 48,270 gates (**4.4×**), prove 2.29 → 0.65 s, RAM
   417 → 108 MB, gas 5.75M → 2.45M (**2.35×**), public inputs 2048 → 1.
 
 Soundness preserved at every stage: valid Rust-generated witnesses accepted; tampered q_as, s, and

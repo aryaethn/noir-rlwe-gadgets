@@ -144,8 +144,10 @@ The naïve circuit's cost is dominated by the Fiat-Shamir hash. Two transforms, 
   combination, near-free in PLONK). At `n=1024` this shrank the SK circuit **5.2×** (212k → 41k gates).
 - **Single-digest public input** (ADR-012). The ciphertext (and, for PK, the public key) becomes a
   *private* witness; the circuit returns one public `digest = Poseidon2(pack(…))`. Public inputs drop
-  from `2N`/`4N` to **1**, cutting on-chain gas ~2.35× and removing the ciphertext calldata. The
-  relying party binds the digest to its known public key + the submitted ciphertext off-chain.
+  from `2N`/`4N` to **1**, cutting on-chain gas ~2.35× and removing the ciphertext calldata. The digest
+  circuit binds the now-private `(pk,c)` into the Fiat–Shamir challenge `γ` so the proof is sound on its
+  own; the relying party still binds the returned digest to its known public key + the submitted
+  ciphertext to confirm *which* ciphertext was proven (see [security.md §6](security.md)).
 
 Full numbers and provenance: [BENCHMARKS.md](../BENCHMARKS.md).
 

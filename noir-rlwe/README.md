@@ -9,7 +9,7 @@ in-circuit NTT (which is O(N log N) gates and out of scope; see `docs/concepts.m
 
 Built and validated on **nargo 1.0.0-beta.22 / bb 5.0.0-nightly.20260522**.
 
-## What's here (Phase 1)
+## Gadgets
 
 | Module | Gadget | Notes |
 |---|---|---|
@@ -50,8 +50,8 @@ Two complete BFV encryption-correctness statements, each in three variants (plai
 
 | Circuit | Statement | n=1024 digest | Who can prove it |
 |---|---|---|---|
-| `sk_encryption` | `c0 = [-a·s + Δ·m + e]_q`, `c1 = a` | 48,195 gates, 0.65 s, 2.45M gas | the secret-key holder |
-| `pk_encryption` | `c0 = [pk0·u + e0 + Δ·m]_q`, `c1 = [pk1·u + e1]_q` | 80,185 gates, 0.89 s, 2.51M gas | **any input submitter** (holds only `pk`) |
+| `sk_encryption` | `c0 = [-a·s + Δ·m + e]_q`, `c1 = a` | 48,270 gates, 0.65 s, 2.45M gas | the secret-key holder |
+| `pk_encryption` | `c0 = [pk0·u + e0 + Δ·m]_q`, `c1 = [pk1·u + e1]_q` | 80,262 gates, 0.89 s, 2.51M gas | **any input submitter** (holds only `pk`) |
 
 `pk_encryption` is the **fhEVM-style input statement**: it proves a submitted ciphertext is a
 well-formed public-key encryption of a bounded message, which is what a user (who does not hold the
@@ -99,9 +99,17 @@ cd ../bench/product && nargo compile && bb gates -b ./target/bench_product.json
 - **Range checks** use `assert_max_bit_size`, never `as uN` casts (which truncate, ADR-007).
 - **Soundness:** the S-Z check gives *random-evaluation* soundness ~2N/p; knowledge soundness
   additionally requires the proof system's polynomial commitments. The challenge binds to the
-  witness (ADR-009). The product check alone does not prove a full BFV statement — that is the
-  Phase 2 top-level circuit.
+  witness (ADR-009). The product check alone does not prove a full BFV statement — the complete SK/PK
+  statements are the `proofs/` circuits above, whose soundness (no-wraparound, completeness, the
+  Fiat–Shamir ROM reduction, and the UltraHonk composition) is proven in `docs/security.md` and the
+  proof notes (`docs/no_wraparound.md`, `docs/completeness.md`, `docs/proof_system_composition.md`).
+
+## Security
+
+UNAUDITED research. The full soundness analysis, the public-key trust boundary, and the proof
+obligations are in `docs/security.md`. Parameter security: `bfv_1024_27` ≈126-bit; `bfv_1024_55` is a
+test vector only (~63-bit). A professional audit is required before production use.
 
 ## License
 
-MIT or Apache-2.0 (to be finalized before publication).
+Dual-licensed under either MIT or Apache-2.0, at your option.

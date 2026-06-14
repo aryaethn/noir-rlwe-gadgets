@@ -16,8 +16,9 @@ This note collapses three security.md §8 obligations that are really one questi
 There are two distinct Fiat–Shamir hashes, and the whole analysis turns on keeping them apart.
 
 **Layer 1 — the in-circuit challenge `γ`.** `γ = Poseidon2(packed witness)` is computed *inside* the
-circuit ([`packed_gamma_pk`](../noir-rlwe/src/proofs/pk_encryption.nr)) and used in the Schwartz–Zippel
-identity assertions. It is **part of the relation the circuit defines** — a deterministic function of
+circuit ([`pk_witness_subdigests`](../noir-rlwe/src/proofs/pk_encryption.nr) + a final hash; in the
+digest variant `γ` also folds in the public `(pk,c)` sub-digests, audit ZK-01) and used in the
+Schwartz–Zippel identity assertions. It is **part of the relation the circuit defines** — a deterministic function of
 the witness wires, not a protocol message. It is an internal wire: never a public input or output.
 
 **Layer 2 — the UltraHonk transcript.** UltraHonk is a SNARK for satisfiability of that circuit. It has

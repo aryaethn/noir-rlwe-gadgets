@@ -98,10 +98,11 @@ fields carried inside the proof.
 
 ## Binding the digest (the part the verifier app must do)
 
-The `_digest` circuit makes `pk0,pk1,c0,c1` private and exposes only their hash. That proof says
-"there exist a public key and ciphertext with this digest that form a valid encryption" — it does not
-say *which*. The consuming contract/app closes the gap by recomputing the digest from the values it
-already trusts:
+The `_digest` circuit makes `pk0,pk1,c0,c1` private and exposes only their hash. The proof is **sound on
+its own** — it certifies "the public key and ciphertext behind this digest form a valid encryption of a
+bounded message" (the digest now binds `(pk,c)` into the Fiat–Shamir challenge `γ`, so the prover cannot
+forge a non-ciphertext — security.md §6). What the proof does *not* say is *which* `(pk,c)` — that the
+relying party pins by recomputing the digest from the values it already trusts:
 
 ```
 accept(proof, ciphertext) :=
@@ -112,7 +113,9 @@ accept(proof, ciphertext) :=
 Because the verifier only accepts when the proof's public input equals `H(registered_pk ‖
 ciphertext)`, the proven `pk0,pk1,c0,c1` are forced to be exactly the registered key and the submitted
 ciphertext. This is why the circuit range-checks `pk0,pk1,c0,c1` to 27 bits (so the packing is
-injective). **Skipping this check breaks soundness** — see [security.md](security.md).
+injective). **Skipping this binding does not let a prover pass off a non-ciphertext (the proof is sound),
+but it leaves you unable to tell whether the proof is about *your* ciphertext** — so it is still
+required for relevance. See [security.md §6](security.md).
 
 `registered_pk` must itself be a **well-formed** public key, established once at key registration by the
 recipient or a DKG ceremony — the circuit proves validity *under* `pk`, not validity *of* `pk` (only the

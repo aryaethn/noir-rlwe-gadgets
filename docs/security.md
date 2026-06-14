@@ -121,10 +121,18 @@ encryption, so the consuming application **must** bind the digest to the values 
 accept(proof, ciphertext) := HonkVerifier.verify(proof, [ H(registered_pk ‖ ciphertext) ])
 ```
 
-If this off-circuit check is skipped, a prover could present a proof for a public key **they** control.
 The circuit range-checks `pk0,pk1,c0,c1` to 27 bits before hashing so the binding is injective (else a
 distinct colliding ciphertext could be substituted). See [end_to_end.md](end_to_end.md) §"Binding the
 digest".
+
+**Hardening (audit ZK-01).** The digest circuits now fold the public sub-digests `(pk,c)` into the
+Fiat–Shamir challenge `γ`. Previously `γ` excluded them (Lever B), which was sound *given* T2 but
+catastrophic without it: a prover could fix the witnesses (fixing `γ`) and then solve a private `c0` to
+satisfy the identity at that one point — a vacuous proof for a non-ciphertext. With `c0` in `γ` this is
+impossible, so the proof is **sound on its own** (a genuine encryption). T2 is still required for
+*relevance* (to bind to *the* submitted ciphertext), but a missing/imperfect T2 now degrades to
+"a valid encryption, possibly not the intended one" rather than "garbage accepted". Cost: ~+75 gates
+(the sub-digests were already computed for the returned value).
 
 **T1 — public-key well-formedness (trust assumption, established at registration).** Security further
 requires `registered_pk` to be a *well-formed* public key — `pk = (-a·s_key + e_key, a)` for a properly
