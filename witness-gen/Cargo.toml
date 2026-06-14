@@ -1,0 +1,17 @@
+[package]
+name = "noir-rlwe-witness-gen"
+version = "0.1.0"
+edition = "2021"
+authors = ["Arya Naraghi"]
+description = "Toy SK-BFV witness generator for the noir-rlwe sk_enc_circuit (UNAUDITED RESEARCH)"
+
+[[bin]]
+name = "witness-gen"
+path = "src/main.rs"
+
+# Intentionally zero dependencies: pure-Rust integer/polynomial arithmetic, fast compile,
+# offline, no Apple-Silicon risk. Swapping in a production BFV (fhe.rs / OpenFHE / SEAL) for
+# standardized parameters is a follow-up that must match their ciphertext layout & moduli.
+
+[profile.release]
+opt-level = 3

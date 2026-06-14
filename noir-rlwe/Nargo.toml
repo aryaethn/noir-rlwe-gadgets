@@ -1,0 +1,7 @@
+[package]
+name = "noir_rlwe"
+type = "lib"
+authors = ["Arya Naraghi"]
+
+[dependencies]
+poseidon = { tag = "v0.3.0", git = "https://github.com/noir-lang/poseidon" }

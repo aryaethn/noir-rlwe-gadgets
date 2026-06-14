@@ -1,0 +1,7 @@
+[package]
+name = "sk_enc_circuit"
+type = "bin"
+authors = ["Arya Naraghi"]
+
+[dependencies]
+noir_rlwe = { path = "../../noir-rlwe" }

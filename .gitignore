@@ -1,0 +1,38 @@
+# Rust / Cargo
+target/
+
+# Noir / Barretenberg build artifacts
+**/target/
+*.gz
+**/po/
+**/evm/proof
+**/evm/public_inputs
+**/evm/vk
+**/evm/vk_hash
+
+# Foundry (forge-std is a dependency, install with `forge install`)
+**/onchain/out/
+**/onchain/cache/
+**/onchain/lib/
+
+# Python scratch
+**/__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Internal planning / research docs (not part of the public release)
+02_attack_plan.md
+03_open_questions.md
+04_lab_notebook.md
+05_research_assessment.md
+06_references.bib
+07_parameter_presets.md
+08_architecture.md
+09_stage0_checklist.md
+10_optimization_plans.md
+distribution.md
+
+# Self-review (internal; not a professional audit). Un-ignore to publish for transparency.
+SECURITY_SELF_REVIEW.md

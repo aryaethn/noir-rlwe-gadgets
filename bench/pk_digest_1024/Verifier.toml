@@ -1,0 +1,2 @@
+# pk uses the digest circuit: the lone public input is the returned digest
+# (= H(pk0||pk1||c0||c1)), computed in-circuit by `nargo execute`.
